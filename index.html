@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="de" data-farbe="spb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Die App zählt nichts und lädt nichts Fremdes. Verbindungen gehen nur an die GoatCounter-Seite,
+     die du selbst einträgst (darum connect-src https:), und zwar nur lesend. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'self' https:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0710">
+<meta name="description" content="Besucher-Ticker als App fürs Handy: deine eigenen GoatCounter-Zahlen, Seitenbesuche oder Kachel-Klicks, heute, 7 Tage, 30 Tage, gesamt. Zählt selbst nichts. / Your own GoatCounter numbers on your phone. Counts nothing itself.">
+<meta name="application-name" content="Besucher-Ticker">
+<meta name="apple-mobile-web-app-title" content="Besucher-Ticker">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://dennismit2n.github.io/besucher-ticker-app/">
+<meta property="og:title" content="Besucher-Ticker · App">
+<meta property="og:description" content="Your own GoatCounter numbers on your phone: page visits or tile clicks, today, 7 days, 30 days, all time. The app itself counts nothing.">
+<meta property="og:image" content="https://dennismit2n.github.io/besucher-ticker-app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Black panel with pink numbers and blue bars: the Besucher-Ticker app showing clicks per tile.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="icon" href="./icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>Besucher-Ticker</title>
+<script>
+/* Vor dem ersten Bild: Sehhilfe der Werkstatt (werkstatt.darstellung) und Farbvariante setzen.
+   Der Ticker hat sein eigenes Aussehen und bleibt immer dunkel; „Normal“ lässt die gemeinsame
+   Wahl hell/dunkel/System anderer Werkzeuge unangetastet. */
+(function () {
+  var d = document.documentElement;
+  try {
+    var th = localStorage.getItem('werkstatt.darstellung');
+    var mm = window.matchMedia;
+    if (th === 'hc-dark') d.setAttribute('data-vision', 'contrast');
+    else if (th === 'hc-light') { d.setAttribute('data-vision', 'contrast'); d.setAttribute('data-theme', 'light'); }
+    else if (th === 'cvd-dark' || th === 'cvd-light') d.setAttribute('data-vision', 'cvd');
+    else if (th === 'invert') d.setAttribute('data-vision', 'invert');
+    else if (mm && mm('(prefers-contrast: more)').matches) d.setAttribute('data-vision', 'contrast');
+    var e = JSON.parse(localStorage.getItem('besucherticker.einst') || '{}');
+    if (e && /^(spb|spe|tmi)$/.test(e.farbe)) d.setAttribute('data-farbe', e.farbe);
+  } catch (x) {}
+  /* beforeinstallprompt kann kommen, bevor das Skript am Seitenende läuft: hier aufheben. */
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.btInstall = e;
+    if (window.btInstallZeigen) window.btInstallZeigen();
+  });
+})();
+</script>
+<style>
+/* Ticker-Look wie das Windows-Overlay: Schwarz, pinke Schrift, blaue Balken. Drei Varianten.
+   Die gedämpfte Schrift (--leise) ist heller als im Overlay, damit sie 4,5:1 hält. */
+:root {
+  color-scheme: dark;
+  --bg: #0a0710; --platte: #000; --feld: #120c18; --feld-2: #1b1222; --linie: #3a2433; --linie-2: #5a3550;
+  --titel: #ff2d95; --text: #ff8ac6; --leise: #b86592; --gross: #ff2d95;
+  --rinne: #101a33; --balken: #2f6bff; --warn: #ff9f43; --fehler: #ff4d4d; --fokus: #ff8ac6;
+  --gr: 1;
+  --r: 14px;
+}
+:root[data-farbe="spe"] { --titel: #ff3fa4; --text: #ffa3d5; --gross: #ff3fa4; --rinne: #0d2430; --balken: #38bdf8; }
+:root[data-farbe="tmi"] { --bg: #0b0512; --platte: #050008; --titel: #e619c8; --text: #f3a6e6; --leise: #b068a9; --gross: #e619c8; --rinne: #141033; --balken: #6366f1; --fokus: #f3a6e6; }
+/* Sehhilfen der Werkstatt */
+:root[data-vision="contrast"]:not([data-theme="light"]) {
+  --bg: #000; --platte: #000; --feld: #000; --feld-2: #1E1E1E; --linie: #A0A0A0; --linie-2: #C4C4C4;
+  --titel: #FFFFFF; --text: #E0E0E0; --leise: #C4C4C4; --gross: #FFFFFF; --rinne: #3A3A3A; --balken: #E0E0E0;
+  --warn: #F2D27A; --fehler: #FF9A9A; --fokus: #FFFFFF;
+}
+:root[data-vision="contrast"][data-theme="light"] {
+  color-scheme: light;
+  --bg: #FFF; --platte: #FFF; --feld: #FFF; --feld-2: #EEE; --linie: #585757; --linie-2: #2B2B2B;
+  --titel: #000; --text: #000; --leise: #2B2B2B; --gross: #000; --rinne: #C8C8C8; --balken: #000;
+  --warn: #5A3E00; --fehler: #9B2C2C; --fokus: #000;
+}
+:root[data-vision="contrast"] :is(.platte, .tafel, details.einst, select, .knopf, .feld) { border-width: 2px; }
+:root[data-vision="contrast"] :is(button, input, select, a, summary):focus-visible { outline-width: 3px; }
+:root[data-vision="cvd"] { --titel: #CC79A7; --gross: #CC79A7; --balken: #56B4E9; --rinne: #12324A; --warn: #F0E442; --fehler: #E8743A; }
+/* Umkehr dreht die Farben um; Schrift, die dann dunkel auf Weiß stehen soll, braucht einen hellen Ausgangston. */
+:root[data-vision="invert"] { filter: invert(1); --leise: #d8a8c4; --titel: #ffa0d0; --gross: #ffa0d0; }
+@media print { :root[data-vision="invert"] { filter: none; } }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums; min-height: 100vh;
+}
+a { color: var(--text); text-underline-offset: 3px; }
+button, input, select { font: inherit; color: inherit; }
+:is(button, input, select, a, summary):focus-visible { outline: 2px solid var(--fokus); outline-offset: 2px; }
+.huelle { max-width: 560px; margin: 0 auto; padding: 0 16px calc(40px + env(safe-area-inset-bottom)); }
+.vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* Kopf */
+header.kopf { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; padding: calc(14px + env(safe-area-inset-top)) 0 12px; }
+.marke { display: flex; align-items: center; gap: 10px; margin-right: auto; text-decoration: none; color: var(--titel); min-width: 0; }
+.marke svg { width: 36px; height: 36px; flex: none; border-radius: 9px; }
+.marke b { display: block; font-size: 19px; line-height: 1.15; letter-spacing: .01em; }
+.marke small { display: block; font-size: 12.5px; color: var(--leise); line-height: 1.3; }
+.steuer { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+select, .knopf, .feld {
+  background: var(--feld); border: 1px solid var(--linie); border-radius: 10px; padding: 7px 10px; min-height: 42px; color: var(--text);
+}
+select { padding-right: 28px; appearance: none; max-width: 100%;
+  background-image: linear-gradient(45deg, transparent 50%, var(--leise) 50%), linear-gradient(135deg, var(--leise) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+select option { background: var(--feld); color: var(--text); }
+.knopf { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
+.knopf:hover { border-color: var(--linie-2); background: var(--feld-2); }
+.knopf.akzent { border-color: var(--titel); color: var(--titel); }
+.knopf svg { width: 17px; height: 17px; flex: none; }
+.knopf:disabled { opacity: .6; cursor: progress; }
+
+/* Die Platte: so sieht das Overlay aus, nur größer. */
+.platte {
+  position: relative; background: var(--platte); border: 1px solid var(--linie); border-radius: 16px;
+  padding: 18px 20px 20px; font-size: calc(15px * var(--gr));
+}
+.p-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
+.p-kopf h1 { margin: 0; font-size: 1.07em; font-weight: 700; color: var(--titel); letter-spacing: .02em; }
+.status { font-size: .8em; color: var(--leise); }
+.status.warn { color: var(--warn); }
+.status.fehler { color: var(--fehler); }
+.p-zahlen { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px 14px; flex-wrap: wrap; margin-top: 4px; }
+.gross { font-size: 3.6em; line-height: 1; font-weight: 750; color: var(--gross); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.neben { display: grid; justify-items: end; gap: 1px; text-align: right; padding-bottom: .25em; }
+.neben .art { font-size: .8em; color: var(--leise); }
+.neben b { font-size: .93em; color: var(--text); font-weight: 650; }
+.p-abschnitt { margin: 1.15em 0 .35em; font-size: .8em; font-weight: 500; color: var(--leise); letter-spacing: .02em; }
+.balken, .zusatz { list-style: none; margin: 0; padding: 0; }
+.balken li { padding: .28em 0; min-width: 0; }
+.balken .zeile, .zusatz li { display: flex; justify-content: space-between; gap: 12px; min-width: 0; }
+.balken .name, .zusatz .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.balken .zahl { font-weight: 700; flex: none; }
+.rinne { display: block; height: calc(8px * var(--gr)); margin-top: 3px; background: var(--rinne); border-radius: 2px; overflow: hidden; }
+.fuell { display: block; height: 100%; background: var(--balken); border-radius: 2px; min-width: 2px; }
+.fuell.null { min-width: 0; width: 0 !important; }
+/* Einzeilig: Name, Balken, Zahl nebeneinander. */
+.balken.dicht li { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: .12em 0; }
+.balken.dicht .zeile { display: contents; }
+.balken.dicht .name { grid-column: 1; grid-row: 1; font-size: .93em; }
+.balken.dicht .zahl { grid-column: 3; grid-row: 1; font-size: .93em; }
+.balken.dicht .rinne { grid-column: 2; grid-row: 1; margin: 0; }
+.zusatz li { padding: .12em 0; font-size: .93em; }
+.zusatz .zahl { color: var(--leise); flex: none; }
+.leer { margin: .9em 0 0; color: var(--leise); font-size: .93em; }
+
+/* Zeiträume und Leiste */
+.zeitraeume { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0 10px; }
+.zeitraeume .knopf { padding: 7px 4px; white-space: normal; line-height: 1.2; text-align: center; }
+.zeitraeume .knopf[aria-pressed="true"] { border-color: var(--titel); color: var(--titel); background-color: var(--feld-2); font-weight: 650; }
+.leiste { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.leiste select { width: 100%; }
+.mit-titel { display: grid; gap: 4px; font-size: 14px; color: var(--leise); min-width: 0; }
+.leiste .knopf { white-space: normal; text-align: left; max-width: 52vw; }
+
+/* Tafeln: Zugang und Einstellungen */
+.tafel, details.einst { background: var(--platte); border: 1px solid var(--linie); border-radius: var(--r); }
+.tafel { padding: 18px 20px; margin-bottom: 16px; }
+.tafel h2 { margin: 0 0 10px; font-size: 17px; color: var(--titel); }
+.tafel p { margin: 8px 0; }
+.klein { font-size: 14px; color: var(--leise); }
+.fehlerzeile { color: var(--fehler); font-size: 14px; min-height: 1.4em; margin: 8px 0 0; }
+.formular { display: grid; gap: 12px; }
+.formular label, .einst-gitter label { display: grid; gap: 4px; font-size: 14px; color: var(--leise); min-width: 0; }
+.feld { width: 100%; font-size: 16px; }
+.feld::placeholder { color: var(--leise); opacity: 1; }
+.knopfreihe { display: flex; flex-wrap: wrap; gap: 8px; }
+details.einst { margin-top: 16px; }
+details.einst summary { cursor: pointer; padding: 14px 18px; color: var(--titel); font-weight: 650; list-style-position: inside; }
+.einst-gitter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 12px; padding: 0 18px 18px; }
+.einst-gitter select { width: 100%; }
+.einst-gitter .breit { grid-column: 1 / -1; }
+.haken { display: flex !important; align-items: center; gap: 10px !important; color: var(--text) !important; font-size: 15px !important; min-height: 42px; cursor: pointer; }
+.haken input { width: 20px; height: 20px; margin: 0; accent-color: var(--titel); flex: none; }
+.einst-zugang { grid-column: 1 / -1; border-top: 1px solid var(--linie); padding-top: 12px; display: grid; gap: 8px; }
+.einst-zugang .site { color: var(--text); overflow-wrap: anywhere; }
+
+footer { margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--linie); font-size: 13.5px; color: var(--leise); display: grid; gap: 4px; }
+footer .links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--feld-2); color: var(--text); border: 1px solid var(--linie-2); border-radius: 12px; padding: 10px 16px; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 20; max-width: calc(100% - 32px); }
+.toast.an { opacity: 1; transform: translateX(-50%); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+@media (max-width: 420px) {
+  header.kopf .steuer { width: 100%; }
+  header.kopf .steuer select { flex: 1 1 0; min-width: 0; }
+  header.kopf .steuer #sprache { flex: 0 1 auto; max-width: 42%; }
+  #installieren { width: 100%; }
+  .platte { padding: 16px 16px 18px; }
+  .einst-gitter { grid-template-columns: minmax(0, 1fr); padding: 0 14px 16px; }
+  .tafel { padding: 16px; }
+}
+@media (max-width: 340px) { .zeitraeume { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Beschlag wie auf der Startseite: eckiger Innenrahmen in der Rundung, vier Schrauben in Weißgold,
+   Licht von rechts oben, Schatten nach links unten. Variablen mit bsl-, damit nichts kollidiert:
+   --bsl-i Abstand des Rahmens von der Innenkante, --bsl-g Schraubengröße, --bsl-a Abstand der
+   Schraube vom Rahmen, --bsl-l Linienfarbe. Schrauben aus der Werkstatt (einbau.py). */
+:root {
+  --schraube-1: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cdefs%3E%3CradialGradient id='s' cx='42%' cy='58%' r='50%'%3E%3Cstop offset='55%' stop-opacity='.6'/%3E%3Cstop offset='100%' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='k' cx='66%' cy='30%' r='78%'%3E%3Cstop offset='0' stop-color='%23FFFFFF'/%3E%3Cstop offset='.2' stop-color='%23FFFCEE'/%3E%3Cstop offset='.5' stop-color='%23F1E4BC'/%3E%3Cstop offset='.8' stop-color='%23C4A964'/%3E%3Cstop offset='1' stop-color='%237A6226'/%3E%3C/radialGradient%3E%3ClinearGradient id='m' x1='1' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%238A6A22' stop-opacity='.55'/%3E%3Cstop offset='.5' stop-color='%23FFF3C4' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23FFFBEA' stop-opacity='.7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='5.1' cy='6.9' r='5' fill='url(%23s)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='url(%23k)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='none' stroke='%23553E0C' stroke-opacity='.6' stroke-width='.45'/%3E%3Ccircle cx='6' cy='6' r='2.9' fill='none' stroke='url(%23m)' stroke-width='.5'/%3E%3Cg transform='rotate(32 6 6)'%3E%3Cpath d='M2.5 6h7' stroke='%233A2A07' stroke-width='1.2' stroke-linecap='round'/%3E%3Cpath d='M2.7 6.62h6.6' stroke='%23FFF7DA' stroke-opacity='.75' stroke-width='.3' stroke-linecap='round'/%3E%3C/g%3E%3Cellipse cx='7.7' cy='3.9' rx='1.05' ry='.6' transform='rotate(-35 7.7 3.9)' fill='%23FFFFFF' fill-opacity='.9'/%3E%3C/svg%3E");
+  --schraube-2: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cdefs%3E%3CradialGradient id='s' cx='42%' cy='58%' r='50%'%3E%3Cstop offset='55%' stop-opacity='.6'/%3E%3Cstop offset='100%' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='k' cx='66%' cy='30%' r='78%'%3E%3Cstop offset='0' stop-color='%23FFFFFF'/%3E%3Cstop offset='.2' stop-color='%23FFFCEE'/%3E%3Cstop offset='.5' stop-color='%23F1E4BC'/%3E%3Cstop offset='.8' stop-color='%23C4A964'/%3E%3Cstop offset='1' stop-color='%237A6226'/%3E%3C/radialGradient%3E%3ClinearGradient id='m' x1='1' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%238A6A22' stop-opacity='.55'/%3E%3Cstop offset='.5' stop-color='%23FFF3C4' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23FFFBEA' stop-opacity='.7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='5.1' cy='6.9' r='5' fill='url(%23s)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='url(%23k)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='none' stroke='%23553E0C' stroke-opacity='.6' stroke-width='.45'/%3E%3Ccircle cx='6' cy='6' r='2.9' fill='none' stroke='url(%23m)' stroke-width='.5'/%3E%3Cg transform='rotate(-58 6 6)'%3E%3Cpath d='M2.5 6h7' stroke='%233A2A07' stroke-width='1.2' stroke-linecap='round'/%3E%3Cpath d='M2.7 6.62h6.6' stroke='%23FFF7DA' stroke-opacity='.75' stroke-width='.3' stroke-linecap='round'/%3E%3C/g%3E%3Cellipse cx='7.7' cy='3.9' rx='1.05' ry='.6' transform='rotate(-35 7.7 3.9)' fill='%23FFFFFF' fill-opacity='.9'/%3E%3C/svg%3E");
+  --schraube-3: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cdefs%3E%3CradialGradient id='s' cx='42%' cy='58%' r='50%'%3E%3Cstop offset='55%' stop-opacity='.6'/%3E%3Cstop offset='100%' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='k' cx='66%' cy='30%' r='78%'%3E%3Cstop offset='0' stop-color='%23FFFFFF'/%3E%3Cstop offset='.2' stop-color='%23FFFCEE'/%3E%3Cstop offset='.5' stop-color='%23F1E4BC'/%3E%3Cstop offset='.8' stop-color='%23C4A964'/%3E%3Cstop offset='1' stop-color='%237A6226'/%3E%3C/radialGradient%3E%3ClinearGradient id='m' x1='1' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%238A6A22' stop-opacity='.55'/%3E%3Cstop offset='.5' stop-color='%23FFF3C4' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23FFFBEA' stop-opacity='.7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='5.1' cy='6.9' r='5' fill='url(%23s)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='url(%23k)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='none' stroke='%23553E0C' stroke-opacity='.6' stroke-width='.45'/%3E%3Ccircle cx='6' cy='6' r='2.9' fill='none' stroke='url(%23m)' stroke-width='.5'/%3E%3Cg transform='rotate(78 6 6)'%3E%3Cpath d='M2.5 6h7' stroke='%233A2A07' stroke-width='1.2' stroke-linecap='round'/%3E%3Cpath d='M2.7 6.62h6.6' stroke='%23FFF7DA' stroke-opacity='.75' stroke-width='.3' stroke-linecap='round'/%3E%3C/g%3E%3Cellipse cx='7.7' cy='3.9' rx='1.05' ry='.6' transform='rotate(-35 7.7 3.9)' fill='%23FFFFFF' fill-opacity='.9'/%3E%3C/svg%3E");
+  --schraube-4: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cdefs%3E%3CradialGradient id='s' cx='42%' cy='58%' r='50%'%3E%3Cstop offset='55%' stop-opacity='.6'/%3E%3Cstop offset='100%' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='k' cx='66%' cy='30%' r='78%'%3E%3Cstop offset='0' stop-color='%23FFFFFF'/%3E%3Cstop offset='.2' stop-color='%23FFFCEE'/%3E%3Cstop offset='.5' stop-color='%23F1E4BC'/%3E%3Cstop offset='.8' stop-color='%23C4A964'/%3E%3Cstop offset='1' stop-color='%237A6226'/%3E%3C/radialGradient%3E%3ClinearGradient id='m' x1='1' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%238A6A22' stop-opacity='.55'/%3E%3Cstop offset='.5' stop-color='%23FFF3C4' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23FFFBEA' stop-opacity='.7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='5.1' cy='6.9' r='5' fill='url(%23s)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='url(%23k)'/%3E%3Ccircle cx='6' cy='6' r='4.3' fill='none' stroke='%23553E0C' stroke-opacity='.6' stroke-width='.45'/%3E%3Ccircle cx='6' cy='6' r='2.9' fill='none' stroke='url(%23m)' stroke-width='.5'/%3E%3Cg transform='rotate(-14 6 6)'%3E%3Cpath d='M2.5 6h7' stroke='%233A2A07' stroke-width='1.2' stroke-linecap='round'/%3E%3Cpath d='M2.7 6.62h6.6' stroke='%23FFF7DA' stroke-opacity='.75' stroke-width='.3' stroke-linecap='round'/%3E%3C/g%3E%3Cellipse cx='7.7' cy='3.9' rx='1.05' ry='.6' transform='rotate(-35 7.7 3.9)' fill='%23FFFFFF' fill-opacity='.9'/%3E%3C/svg%3E");
+}
+select, .knopf, .feld, .platte, .tafel, details.einst {
+  --bsl-i: 3px; --bsl-g: 4px; --bsl-a: .5px;
+  --bsl-l: color-mix(in srgb, var(--titel) 40%, transparent);
+  --beschlag:
+    var(--schraube-1) left calc(var(--bsl-i) + var(--bsl-a)) top calc(var(--bsl-i) + var(--bsl-a)) / var(--bsl-g) var(--bsl-g) no-repeat,
+    var(--schraube-2) right calc(var(--bsl-i) + var(--bsl-a)) top calc(var(--bsl-i) + var(--bsl-a)) / var(--bsl-g) var(--bsl-g) no-repeat,
+    var(--schraube-3) left calc(var(--bsl-i) + var(--bsl-a)) bottom calc(var(--bsl-i) + var(--bsl-a)) / var(--bsl-g) var(--bsl-g) no-repeat,
+    var(--schraube-4) right calc(var(--bsl-i) + var(--bsl-a)) bottom calc(var(--bsl-i) + var(--bsl-a)) / var(--bsl-g) var(--bsl-g) no-repeat,
+    linear-gradient(var(--bsl-l), var(--bsl-l)) center top var(--bsl-i) / calc(100% - 2 * var(--bsl-i)) 1px no-repeat,
+    linear-gradient(var(--bsl-l), var(--bsl-l)) center bottom var(--bsl-i) / calc(100% - 2 * var(--bsl-i)) 1px no-repeat,
+    linear-gradient(var(--bsl-l), var(--bsl-l)) left var(--bsl-i) center / 1px calc(100% - 2 * var(--bsl-i)) no-repeat,
+    linear-gradient(var(--bsl-l), var(--bsl-l)) right var(--bsl-i) center / 1px calc(100% - 2 * var(--bsl-i)) no-repeat;
+}
+.knopf, .feld { background: var(--beschlag), var(--feld); box-shadow: -3px 4px 8px -4px rgba(0, 0, 0, .7); }
+.knopf:hover { background: var(--beschlag), var(--feld-2); }
+.zeitraeume .knopf[aria-pressed="true"] { background: var(--beschlag), var(--feld-2); }
+/* Auswahlfelder: Beschlag vor dem Pfeil und dem Grund. */
+select {
+  background: var(--beschlag),
+    linear-gradient(45deg, transparent 50%, var(--leise) 50%) calc(100% - 15px) 52% / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--leise) 50%, transparent 50%) calc(100% - 10px) 52% / 5px 5px no-repeat,
+    var(--feld);
+  box-shadow: -3px 4px 8px -4px rgba(0, 0, 0, .7);
+}
+.platte {
+  --bsl-i: 6px; --bsl-g: 8px; --bsl-a: 2px;
+  background: var(--beschlag), var(--platte);
+  box-shadow: -12px 14px 30px -6px rgba(0, 0, 0, .75);
+}
+.tafel, details.einst {
+  --bsl-i: 5px; --bsl-g: 6px; --bsl-a: 1.5px;
+  background: var(--beschlag), var(--platte);
+  box-shadow: -6px 8px 18px -8px rgba(0, 0, 0, .7);
+}
+:root[data-vision="contrast"] :is(select, .knopf, .feld, .platte, .tafel, details.einst) { box-shadow: none; }
+@media print { select, .knopf, .feld, .platte, .tafel, details.einst { background-image: none !important; box-shadow: none !important; } }
+/* Ende Beschlag */
+</style>
+</head>
+<body>
+<div class="huelle">
+  <header class="kopf">
+    <a class="marke" href="./">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#000"/><rect x="11" y="30" width="10" height="23" rx="1.5" fill="#2f6bff"/><rect x="27" y="20" width="10" height="33" rx="1.5" fill="#2f6bff"/><rect x="43" y="38" width="10" height="15" rx="1.5" fill="#2f6bff"/><circle cx="48" cy="15" r="6.5" fill="#ff2d95"/></svg>
+      <span><b>Besucher-Ticker</b><small data-i="untertitel">Deine GoatCounter-Zahlen am Handy</small></span>
+    </a>
+    <div class="steuer">
+      <button id="installieren" class="knopf akzent" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>
+        <span data-i="install">Installieren</span>
+      </button>
+      <label class="vh" for="sprache" data-i="sprache">Sprache</label>
+      <select id="sprache">
+        <option value="de">Deutsch</option>
+        <option value="en">English</option>
+        <option value="es">Español</option>
+        <option value="fr">Français</option>
+        <option value="it">Italiano</option>
+        <option value="nl">Nederlands</option>
+        <option value="pl">Polski</option>
+        <option value="pt">Português (Brasil)</option>
+        <option value="tr">Türkçe</option>
+        <option value="ru">Русский</option>
+        <option value="hi">हिन्दी</option>
+        <option value="zh">中文（简体）</option>
+        <option value="ja">日本語</option>
+        <option value="ko">한국어</option>
+      </select>
+      <label class="vh" for="darstellung" data-i="darst">Darstellung</label>
+      <select id="darstellung"></select>
+    </div>
+  </header>
+
+  <main>
+    <section class="tafel" id="zugang" aria-labelledby="zugang-h" hidden>
+      <h2 id="zugang-h" data-i="zugangH">Mit deiner GoatCounter-Seite verbinden</h2>
+      <form class="formular" id="zugang-form" novalidate>
+        <label><span data-i="siteL">Adresse deiner GoatCounter-Seite</span>
+          <input class="feld" id="site" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <label><span data-i="tokenL">API-Token</span>
+          <input class="feld" id="token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <p class="klein" data-i="tokenHilfe"></p>
+        <p class="klein" data-i="tokenOrt"></p>
+        <div class="knopfreihe">
+          <button class="knopf akzent" id="verbinden" type="submit" data-i="verbinden">Verbinden</button>
+          <button class="knopf" id="abbrechen" type="button" data-i="abbrechen" hidden>Abbrechen</button>
+        </div>
+        <p class="fehlerzeile" id="zugang-fehler" role="alert"></p>
+      </form>
+    </section>
+
+    <div id="anzeige" hidden>
+      <section class="platte" aria-labelledby="p-titel">
+        <div class="p-kopf">
+          <h1 id="p-titel">Besucher</h1>
+          <span class="status" id="status" role="status"></span>
+        </div>
+        <div class="p-zahlen">
+          <div class="gross" id="gross">0</div>
+          <div class="neben">
+            <span class="art" id="art-zr"></span>
+            <b id="heute-n"></b>
+            <b id="gesamt-n"></b>
+          </div>
+        </div>
+        <h2 class="p-abschnitt" id="balken-h"></h2>
+        <ol class="balken" id="balken"></ol>
+        <p class="leer" id="leer" data-i="leer" hidden></p>
+        <h2 class="p-abschnitt" id="zusatz-h" hidden></h2>
+        <ol class="zusatz" id="zusatz"></ol>
+      </section>
+
+      <div class="zeitraeume" role="group" aria-labelledby="zr-l" id="zeitraeume">
+        <span class="vh" id="zr-l" data-i="mZeitraum">Zeitraum</span>
+      </div>
+      <div class="leiste">
+        <label class="mit-titel"><span data-i="setZaehlart">Was gezählt wird</span><select id="zaehlart"></select></label>
+        <button class="knopf" id="jetzt" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+          <span data-i="mJetzt">Jetzt aktualisieren</span>
+        </button>
+      </div>
+
+      <details class="einst" id="einst">
+        <summary data-i="mEinstellungen">Einstellungen…</summary>
+        <div class="einst-gitter">
+          <label><span data-i="setZusatz">Zusatzblock</span><select id="e-zusatz"></select></label>
+          <label><span data-i="setZusatzZeilen">Zeilen im Zusatzblock</span><select id="e-zeilen"></select></label>
+          <label><span data-i="setBalken">Höchstens so viele Balken</span><select id="e-balken"></select></label>
+          <label><span data-i="setFreq">Update-Frequenz</span><select id="e-takt"></select></label>
+          <label class="haken breit"><input type="checkbox" id="e-nullen"><span data-i="setNullen">Auch Einträge mit 0 zeigen</span></label>
+          <label class="haken breit"><input type="checkbox" id="e-dicht"><span data-i="setDicht">Balken einzeilig</span></label>
+          <label><span id="e-farbe-l">Farben</span><select id="e-farbe"></select></label>
+          <label><span data-i="setGroesse">Größe</span><select id="e-groesse"></select></label>
+          <p class="klein breit" data-i="taktHinweis"></p>
+          <div class="einst-zugang">
+            <span class="site" id="verbunden"></span>
+            <span class="klein" data-i="tokenOrt"></span>
+            <div class="knopfreihe">
+              <button class="knopf" id="zugang-aendern" type="button" data-i="mZugang">Zugang ändern</button>
+              <button class="knopf" id="zugang-loeschen" type="button" data-i="zugangLoeschen">Zugang löschen</button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </main>
+
+  <footer>
+    <span data-i="frei">Die App zählt nicht mit: kein Tracking, keine Cookies, keine Werbung.</span>
+    <span data-i="liest">Sie liest nur deine eigenen Zahlen über die GoatCounter-API.</span>
+    <span data-i="unabhaengig">Unabhängiges Werkzeug, nicht von GoatCounter.</span>
+    <span class="links">
+      <a href="https://github.com/Dennismit2n/besucher-ticker" rel="noopener" data-i="windows">Besucher-Ticker für Windows</a>
+      <a href="https://github.com/Dennismit2n/besucher-ticker-app" rel="noopener" data-i="quelle">Quelltext auf GitHub</a>
+    </span>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="./logik.js"></script>
+<script src="./texte.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+function el(tag, attrs, kinder) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'text') e.textContent = v; else if (k === 'cls') e.className = v; else e.setAttribute(k, v);
+  }
+  for (const k of kinder || []) e.append(k);
+  return e;
+}
+function laden(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function speichern(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function entfernen(k) { try { localStorage.removeItem(k); } catch (e) {} }
+function json(k) { try { return JSON.parse(laden(k) || 'null'); } catch (e) { return null; } }
+
+const K_EINST = 'besucherticker.einst', K_ZUGANG = 'besucherticker.zugang', K_LANG = 'besucherticker.lang', K_LETZTE = 'besucherticker.letzte';
+const FARBEN = [['spb', 'themeSPB'], ['spe', 'themeSPE'], ['tmi', 'themeTMI']];
+const STANDARD = { zaehlart: 'auto', zeitraum: 'heute', maxBalken: 8, nullen: false, dicht: false, zusatz: 'verweise', zusatzZeilen: 4, takt: BT.DEFAULT_REFRESH, farbe: 'spb', groesse: 100 };
+
+const S = {
+  lang: 'de',
+  einst: Object.assign({}, STANDARD),
+  zugang: null,          // {site, token}
+  daten: null,           // letzter Satz Zahlen
+  datenZeit: 0,          // wann geholt (ms)
+  status: { art: 'lade' },
+  stufe: 0,              // wievielter Fehler in Folge
+  timer: 0,
+  letzterLauf: 0,
+  laeuft: false,
+  nochmal: false,
+};
+let api = null, ticker = null;
+
+const L = (k, w) => TX.tx(S.lang, k, w);
+const zahl = n => BT.zahlKurz(n, S.lang);
+const zeitraumName = k => L((BT.ZEITRAEUME.find(z => z[0] === k) || BT.ZEITRAEUME[0])[1]);
+function uhrzeit(ms) { return new Date(ms).toLocaleTimeString(S.lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+function stand(ms) {
+  const d = new Date(ms), heute = new Date();
+  const tag = d.toDateString() === heute.toDateString() ? '' : d.toLocaleDateString(S.lang, { day: 'numeric', month: 'numeric' }) + ' ';
+  return tag + d.toLocaleTimeString(S.lang, { hour: '2-digit', minute: '2-digit' });
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('an');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('an'), 2600);
+}
+
+/* ===================== Einstellungen ===================== */
+function einstLaden() {
+  const e = json(K_EINST) || {};
+  const in_ = (v, liste) => liste.includes(v);
+  const s = S.einst;
+  if (in_(e.zaehlart, BT.ZAEHLARTEN.map(z => z[0]))) s.zaehlart = e.zaehlart;
+  if (in_(e.zeitraum, BT.ZEITRAEUME.map(z => z[0]))) s.zeitraum = e.zeitraum;
+  if (in_(e.maxBalken, BT.MAX_BALKEN_CHOICES)) s.maxBalken = e.maxBalken;
+  if (typeof e.nullen === 'boolean') s.nullen = e.nullen;
+  if (typeof e.dicht === 'boolean') s.dicht = e.dicht;
+  if (in_(e.zusatz, BT.ZUSATZ_CHOICES.map(z => z[0]))) s.zusatz = e.zusatz;
+  if (in_(e.zusatzZeilen, BT.ZUSATZ_ZEILEN_CHOICES)) s.zusatzZeilen = e.zusatzZeilen;
+  if (in_(e.takt, BT.REFRESH_CHOICES)) s.takt = e.takt;
+  if (in_(e.farbe, FARBEN.map(f => f[0]))) s.farbe = e.farbe;
+  if (in_(e.groesse, BT.GROESSEN.map(g => g[0]))) s.groesse = e.groesse;
+}
+function einstSpeichern() { speichern(K_EINST, JSON.stringify(S.einst)); }
+function einstAnwenden() {
+  document.documentElement.setAttribute('data-farbe', S.einst.farbe);
+  document.documentElement.style.setProperty('--gr', String(S.einst.groesse / 100));
+  if (ticker) Object.assign(ticker, { zaehlart: S.einst.zaehlart, zeitraum: S.einst.zeitraum, maxBalken: S.einst.maxBalken, nullen: S.einst.nullen, zusatz: S.einst.zusatz, zusatzZeilen: S.einst.zusatzZeilen });
+}
+/** Eine Einstellung ändern. holen: danach sofort neu abfragen (wie das Overlay). */
+function setze(schluessel, wert, holen) {
+  S.einst[schluessel] = wert;
+  einstSpeichern(); einstAnwenden(); steuerungZeigen();
+  if (holen) { S.status = { art: 'lade' }; zeichne(); lauf(); } else zeichne();
+}
+
+/* ===================== Zugang ===================== */
+function zugangLaden() {
+  const z = json(K_ZUGANG);
+  S.zugang = z && typeof z.site === 'string' && typeof z.token === 'string' && z.site && z.token ? z : null;
+}
+function zugangZeigen(neu) {
+  $('zugang').hidden = false;
+  $('anzeige').hidden = !!neu || !S.zugang;
+  if (neu) $('anzeige').hidden = true;
+  $('abbrechen').hidden = !S.zugang;
+  $('site').value = S.zugang ? S.zugang.site.replace(/^https:\/\//, '') : ($('site').value || '');
+  $('token').value = '';
+  $('zugang-fehler').textContent = '';
+  setTimeout(() => (S.zugang ? $('token') : $('site')).focus(), 0);
+}
+function zugangVerbergen() { $('zugang').hidden = true; $('anzeige').hidden = !S.zugang; }
+
+function fehlerText(r) {
+  if (r.art === 'zugang') return L('tokenUngueltig');
+  if (r.art === 'fehlt') return L('fehlerSite');
+  if (r.art === 'rate') return L('ratePause');
+  return L('netzFehler');
+}
+
+$('zugang-form').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const site = BT.normalisiereSite($('site').value), token = $('token').value.trim();
+  if (!site || !token) { $('zugang-fehler').textContent = L('fehlerLeer'); return; }
+  const knopf = $('verbinden');
+  knopf.disabled = true; knopf.textContent = L('pruefe'); $('zugang-fehler').textContent = '';
+  // Erst prüfen, dann speichern: ein falsches Token landet nie im Speicher.
+  const probeApi = new BT.GoatCounterAPI(site, token);
+  const probe = new BT.Ticker(probeApi, S.einst);
+  const r = await probe.einmal();
+  knopf.disabled = false; knopf.textContent = L('verbinden');
+  if (!r.ok) { $('zugang-fehler').textContent = fehlerText(r); return; }
+  S.zugang = { site, token };
+  speichern(K_ZUGANG, JSON.stringify(S.zugang));
+  api = probeApi; ticker = probe; einstAnwenden();
+  $('token').value = '';
+  zugangVerbergen();
+  ergebnis(r);
+  toast(L('zugangOk'));
+});
+$('abbrechen').addEventListener('click', () => { $('token').value = ''; zugangVerbergen(); });
+$('zugang-aendern').addEventListener('click', () => { $('einst').open = false; zugangZeigen(true); });
+$('zugang-loeschen').addEventListener('click', () => {
+  entfernen(K_ZUGANG); entfernen(K_LETZTE);
+  S.zugang = null; S.daten = null; api = null; ticker = null;
+  clearTimeout(S.timer);
+  $('einst').open = false; $('site').value = '';
+  zugangZeigen(true);
+  toast(L('zugangGeloescht'));
+});
+
+/* ===================== Abruf ===================== */
+function planen(sek) { clearTimeout(S.timer); S.timer = setTimeout(lauf, sek * 1000); }
+
+async function lauf() {
+  if (!ticker) return;
+  if (document.hidden) { clearTimeout(S.timer); return; }   // im Hintergrund nichts abfragen
+  if (S.laeuft) { S.nochmal = true; return; }
+  S.laeuft = true;
+  clearTimeout(S.timer);
+  let r;
+  try { r = await ticker.einmal(); } finally { S.laeuft = false; }
+  S.letzterLauf = Date.now();
+  ergebnis(r);
+  if (S.nochmal) { S.nochmal = false; lauf(); }
+}
+
+function ergebnis(r) {
+  if (r.ok && r.daten) {
+    S.daten = r.daten; S.datenZeit = Date.now(); S.stufe = 0;
+    S.status = { art: 'ok' };
+    speichern(K_LETZTE, JSON.stringify({ site: S.zugang && S.zugang.site, zeit: S.datenZeit, daten: S.daten }));
+    zeichne(); planen(S.einst.takt);
+    return;
+  }
+  if (r.ok) return;
+  if (r.art === 'zugang' || r.art === 'fehlt') {
+    clearTimeout(S.timer);
+    S.status = { art: 'fehler', text: fehlerText(r) };
+    zeichne();
+    zugangZeigen(false);
+    $('zugang-fehler').textContent = fehlerText(r);
+    return;
+  }
+  // Netz oder Rate-Limit: feste Pausen wie im Overlay, nie länger als der Takt bei Netzfehlern.
+  const i = Math.min(S.stufe, 2);
+  const warte = r.art === 'rate' ? BT.RATE_LIMIT_BACKOFF[i] : Math.min(BT.RETRY_BACKOFF[i], S.einst.takt);
+  S.stufe += 1;
+  S.status = r.art === 'rate' ? { art: 'rate', sek: warte } : { art: 'netz' };
+  zeichne(); planen(warte);
+}
+
+/* ===================== Zeichnen ===================== */
+function zeichne() {
+  const d = S.daten, e = S.einst;
+  const zr = d ? d.zeitraum : e.zeitraum;
+  $('p-titel').textContent = `${L('titel')} · ${zeitraumName(zr)}`;
+
+  const st = $('status');
+  st.className = 'status';
+  if (S.status.art === 'ok') st.textContent = L('aktualisiert', { zeit: uhrzeit(S.datenZeit) });
+  else if (S.status.art === 'lade') st.textContent = L('lade');
+  else if (S.status.art === 'rate') { st.textContent = `${L('ratePause')} ${S.status.sek} s`; st.classList.add('fehler'); }
+  else if (S.status.art === 'fehler') { st.textContent = S.status.text; st.classList.add('fehler'); }
+  else if (!navigator.onLine && d) { st.textContent = L('offline', { zeit: stand(S.datenZeit) }); st.classList.add('warn'); }
+  else { st.textContent = L('netzFehler'); st.classList.add('warn'); }
+
+  if (!d) {
+    $('gross').textContent = '·'; $('art-zr').textContent = ''; $('heute-n').textContent = ''; $('gesamt-n').textContent = '';
+    $('balken-h').textContent = ''; $('balken').textContent = ''; $('leer').hidden = true;
+    $('zusatz-h').hidden = true; $('zusatz').textContent = '';
+    return;
+  }
+  // Die große Zahl gehört zum Zeitraum, mit dem sie geholt wurde.
+  const klicks = d.art === 'klicks';
+  $('gross').textContent = zahl(d.zeitraumTotal);
+  $('art-zr').textContent = `${L(klicks ? 'artKlicks' : 'artSeiten')} · ${zeitraumName(zr)}`;
+  $('heute-n').textContent = zr !== 'heute' ? L('heuteN', { n: zahl(d.heute) }) : '';
+  $('gesamt-n').textContent = d.gesamt != null ? L('gesamtN', { n: zahl(d.gesamt) }) : '';
+
+  const balken = d.balken || [];
+  $('balken-h').textContent = balken.length ? L(klicks ? 'jeKachel' : 'jeWerkzeug') : '';
+  $('balken-h').hidden = !balken.length;
+  $('leer').hidden = balken.length > 0;
+  const liste = $('balken');
+  liste.className = 'balken' + (e.dicht ? ' dicht' : '');
+  liste.textContent = '';
+  const hoechst = Math.max(1, ...balken.map(b => b.count));
+  for (const b of balken) {
+    const name = TX.anzeige(b.label, S.lang);
+    const fuell = el('span', { cls: 'fuell' + (b.count ? '' : ' null') });
+    fuell.style.width = (b.count / hoechst * 100) + '%';
+    liste.append(el('li', { title: `${name}: ${zahl(b.count)}` }, [
+      el('span', { cls: 'zeile' }, [el('span', { cls: 'name', text: name }), el('span', { cls: 'zahl', text: zahl(b.count) })]),
+      el('span', { cls: 'rinne', 'aria-hidden': 'true' }, [fuell]),
+    ]));
+  }
+
+  const zusatz = d.zusatz || [];
+  const zArt = BT.ZUSATZ_CHOICES.find(z => z[2] === d.zusatzArt);
+  const zeigeZusatz = zusatz.length > 0 && zArt && e.zusatz !== 'aus';
+  $('zusatz-h').hidden = !zeigeZusatz;
+  $('zusatz-h').textContent = zArt ? L(zArt[1]) : '';
+  $('zusatz').textContent = '';
+  if (zeigeZusatz) for (const z of zusatz) {
+    const name = TX.anzeige(z.label, S.lang);
+    $('zusatz').append(el('li', {}, [el('span', { cls: 'name', text: name, title: name }), el('span', { cls: 'zahl', text: zahl(z.count) })]));
+  }
+}
+
+/* ===================== Steuerung ===================== */
+function optionen(sel, liste, wert) {
+  sel.textContent = '';
+  for (const [v, t] of liste) sel.append(el('option', { value: String(v), text: t }));
+  sel.value = String(wert);
+}
+function steuerungZeigen() {
+  const e = S.einst;
+  const zr = $('zeitraeume');
+  zr.querySelectorAll('button').forEach(b => b.remove());
+  for (const [k, t] of BT.ZEITRAEUME) {
+    const b = el('button', { cls: 'knopf', type: 'button', 'aria-pressed': String(k === e.zeitraum), text: L(t) });
+    b.addEventListener('click', () => setze('zeitraum', k, true));
+    zr.append(b);
+  }
+  optionen($('zaehlart'), BT.ZAEHLARTEN.map(([k, t]) => [k, L(t)]), e.zaehlart);
+  optionen($('e-zusatz'), BT.ZUSATZ_CHOICES.map(([k, t]) => [k, L(t)]), e.zusatz);
+  optionen($('e-zeilen'), BT.ZUSATZ_ZEILEN_CHOICES.map(n => [n, String(n)]), e.zusatzZeilen);
+  optionen($('e-balken'), BT.MAX_BALKEN_CHOICES.map(n => [n, TX.balkenName(n, S.lang)]), e.maxBalken);
+  optionen($('e-takt'), BT.REFRESH_CHOICES.map(n => [n, TX.taktName(n, S.lang)]), e.takt);
+  optionen($('e-farbe'), FARBEN.map(([k, t]) => [k, L(t)]), e.farbe);
+  optionen($('e-groesse'), BT.GROESSEN.map(([p, t]) => [p, L(t)]), e.groesse);
+  $('e-farbe-l').textContent = L('setFarben', { n: FARBEN.length });
+  $('e-nullen').checked = e.nullen;
+  $('e-dicht').checked = e.dicht;
+  $('verbunden').textContent = S.zugang ? L('verbundenMit', { site: S.zugang.site.replace(/^https:\/\//, '') }) : '';
+}
+$('zaehlart').addEventListener('change', ev => setze('zaehlart', ev.target.value, true));
+$('e-zusatz').addEventListener('change', ev => setze('zusatz', ev.target.value, true));
+$('e-zeilen').addEventListener('change', ev => setze('zusatzZeilen', +ev.target.value, true));
+$('e-balken').addEventListener('change', ev => setze('maxBalken', +ev.target.value, true));
+$('e-takt').addEventListener('change', ev => { setze('takt', +ev.target.value, false); planen(S.einst.takt); });
+$('e-farbe').addEventListener('change', ev => setze('farbe', ev.target.value, false));
+$('e-groesse').addEventListener('change', ev => setze('groesse', +ev.target.value, false));
+$('e-nullen').addEventListener('change', ev => setze('nullen', ev.target.checked, true));
+$('e-dicht').addEventListener('change', ev => setze('dicht', ev.target.checked, false));
+$('jetzt').addEventListener('click', () => { S.stufe = 0; S.status = { art: 'lade' }; zeichne(); lauf(); });
+
+/* ===================== Sprache und Darstellung ===================== */
+// Fünf Einträge wie bei bigday und MW4: der Ticker hat sein eigenes, dunkles Aussehen.
+const DARST = ['normal', 'hc-dark', 'hc-light', 'cvd', 'invert'];
+function darstAktuell() {
+  const v = laden('werkstatt.darstellung');
+  if (v === 'hc-dark' || v === 'hc-light' || v === 'invert') return v;
+  if (v === 'cvd-dark' || v === 'cvd-light') return 'cvd';
+  return 'normal';
+}
+function setzeDarstellung(v, merken) {
+  const d = document.documentElement;
+  d.removeAttribute('data-theme'); d.removeAttribute('data-vision');
+  if (v === 'hc-dark') d.setAttribute('data-vision', 'contrast');
+  else if (v === 'hc-light') { d.setAttribute('data-vision', 'contrast'); d.setAttribute('data-theme', 'light'); }
+  else if (v === 'cvd') d.setAttribute('data-vision', 'cvd');
+  else if (v === 'invert') d.setAttribute('data-vision', 'invert');
+  else if (matchMedia('(prefers-contrast: more)').matches) d.setAttribute('data-vision', 'contrast');
+  if (merken) {
+    const alt = laden('werkstatt.darstellung');
+    // „Normal“ lässt hell/dunkel/System der anderen Werkzeuge stehen; Farbenblind bleibt dunkel.
+    if (v === 'normal') { if (!['system', 'light', 'dark'].includes(alt)) speichern('werkstatt.darstellung', 'system'); }
+    else speichern('werkstatt.darstellung', v === 'cvd' ? 'cvd-dark' : v);
+  }
+  const hell = v === 'hc-light';
+  document.querySelector('meta[name="theme-color"]').content = hell ? '#FFFFFF' : getComputedStyle(d).getPropertyValue('--bg').trim() || '#0a0710';
+  document.querySelector('meta[name="color-scheme"]').content = hell ? 'light' : 'dark';
+}
+function setzeSprache(l, merken) {
+  S.lang = TX.SPRACHEN.includes(l) ? l : 'en';
+  if (merken) speichern(K_LANG, S.lang);
+  document.documentElement.lang = S.lang;
+  $('sprache').value = S.lang;
+  document.querySelectorAll('[data-i]').forEach(e => { const v = L(e.dataset.i); if (typeof v === 'string') e.textContent = v; });
+  $('site').placeholder = L('siteP');
+  const ds = $('darstellung');
+  ds.textContent = '';
+  DARST.forEach((v, k) => ds.append(el('option', { value: v, text: L('darstOpt')[k] })));
+  ds.value = darstAktuell();
+  steuerungZeigen();
+  zeichne();
+}
+$('sprache').addEventListener('change', ev => setzeSprache(ev.target.value, true));
+$('darstellung').addEventListener('change', ev => setzeDarstellung(ev.target.value, true));
+matchMedia('(prefers-contrast: more)').addEventListener('change', () => setzeDarstellung($('darstellung').value, false));
+window.addEventListener('storage', ev => { if (ev.key === 'werkstatt.darstellung') { $('darstellung').value = darstAktuell(); setzeDarstellung(darstAktuell(), false); } });
+
+/* ===================== Installieren ===================== */
+function alsApp() { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+function zeigeInstall() { $('installieren').hidden = !(window.btInstall && !alsApp()); }
+window.btInstallZeigen = zeigeInstall;
+$('installieren').addEventListener('click', async () => {
+  const e = window.btInstall; window.btInstall = null; zeigeInstall();
+  if (!e) return;
+  try { e.prompt(); await e.userChoice; } catch (x) {}
+});
+window.addEventListener('appinstalled', () => { window.btInstall = null; zeigeInstall(); toast(L('installDone')); });
+
+/* ===================== Start ===================== */
+(function start() {
+  let l = laden(K_LANG);
+  if (!TX.SPRACHEN.includes(l)) {
+    const c = (navigator.languages || [navigator.language || 'en']).map(x => String(x).toLowerCase().split('-')[0]);
+    l = c.find(x => TX.SPRACHEN.includes(x)) || 'en';
+  }
+  S.lang = l;
+  einstLaden(); zugangLaden();
+  if (S.zugang) {
+    api = new BT.GoatCounterAPI(S.zugang.site, S.zugang.token);
+    ticker = new BT.Ticker(api, S.einst);
+    // Der letzte Stand steht sofort da, auch ohne Netz.
+    const letzte = json(K_LETZTE);
+    if (letzte && letzte.site === S.zugang.site && letzte.daten) { S.daten = letzte.daten; S.datenZeit = letzte.zeit || 0; }
+  }
+  einstAnwenden();
+  setzeDarstellung(darstAktuell(), false);
+  setzeSprache(l, false);
+  zeigeInstall();
+  if (S.zugang) { zugangVerbergen(); lauf(); } else zugangZeigen(true);
+
+  // Im Hintergrund ruht alles; zurück im Vordergrund wird nachgeholt, was fällig ist.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { clearTimeout(S.timer); return; }
+    if (!ticker) return;
+    const faellig = S.einst.takt * 1000 - (Date.now() - S.letzterLauf);
+    if (faellig <= 0) lauf(); else planen(faellig / 1000);
+  });
+  window.addEventListener('online', () => { if (ticker) { S.stufe = 0; lauf(); } });
+  window.addEventListener('offline', zeichne);
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>

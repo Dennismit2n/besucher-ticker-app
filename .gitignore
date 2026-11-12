@@ -1,0 +1,17 @@
+# Private Arbeitsnotizen
+_intern/
+
+# Rohbilder vor der WebP-Umwandlung (die README zeigt die .webp)
+docs/*.png
+
+# Python
+__pycache__/
+*.pyc
+
+# Betriebssystem
+Thumbs.db
+desktop.ini
+*.log
+
+# Claude-Code-Einstellungen
+.claude/

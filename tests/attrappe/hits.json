@@ -1,0 +1,166 @@
+{
+ "hits": [
+  {
+   "path_id": 1,
+   "path": "/",
+   "title": "Werkstatt",
+   "event": false,
+   "count": 120
+  },
+  {
+   "path_id": 10,
+   "path": "kachel-spectroton",
+   "title": "Spectroton",
+   "event": true,
+   "count": 41
+  },
+  {
+   "path_id": 40,
+   "path": "kachel-spectroton-readme",
+   "title": "Spectroton",
+   "event": true,
+   "count": 10
+  },
+  {
+   "path_id": 11,
+   "path": "kachel-wingetarium",
+   "title": "Wingetarium",
+   "event": true,
+   "count": 33
+  },
+  {
+   "path_id": 41,
+   "path": "kachel-wingetarium-readme",
+   "title": "Wingetarium",
+   "event": true,
+   "count": 8
+  },
+  {
+   "path_id": 12,
+   "path": "kachel-ram",
+   "title": "Real_RAM_cooler",
+   "event": true,
+   "count": 29
+  },
+  {
+   "path_id": 42,
+   "path": "kachel-ram-readme",
+   "title": "Real_RAM_cooler",
+   "event": true,
+   "count": 7
+  },
+  {
+   "path_id": 13,
+   "path": "kachel-ticker",
+   "title": "Besucher-Ticker",
+   "event": true,
+   "count": 22
+  },
+  {
+   "path_id": 43,
+   "path": "kachel-ticker-readme",
+   "title": "Besucher-Ticker",
+   "event": true,
+   "count": 6
+  },
+  {
+   "path_id": 14,
+   "path": "kachel-prisma",
+   "title": "Prismatical",
+   "event": true,
+   "count": 18
+  },
+  {
+   "path_id": 44,
+   "path": "kachel-prisma-readme",
+   "title": "Prismatical",
+   "event": true,
+   "count": 5
+  },
+  {
+   "path_id": 15,
+   "path": "kachel-wifi",
+   "title": "WiFi QR Card",
+   "event": true,
+   "count": 14
+  },
+  {
+   "path_id": 45,
+   "path": "kachel-wifi-readme",
+   "title": "WiFi QR Card",
+   "event": true,
+   "count": 4
+  },
+  {
+   "path_id": 16,
+   "path": "kachel-pocketsum",
+   "title": "Pocketsum",
+   "event": true,
+   "count": 11
+  },
+  {
+   "path_id": 46,
+   "path": "kachel-pocketsum-readme",
+   "title": "Pocketsum",
+   "event": true,
+   "count": 3
+  },
+  {
+   "path_id": 17,
+   "path": "kachel-hourbridge",
+   "title": "Hourbridge",
+   "event": true,
+   "count": 9
+  },
+  {
+   "path_id": 47,
+   "path": "kachel-hourbridge-readme",
+   "title": "Hourbridge",
+   "event": true,
+   "count": 2
+  },
+  {
+   "path_id": 18,
+   "path": "kachel-follower",
+   "title": "Follower-Log",
+   "event": true,
+   "count": 6
+  },
+  {
+   "path_id": 48,
+   "path": "kachel-follower-readme",
+   "title": "Follower-Log",
+   "event": true,
+   "count": 2
+  },
+  {
+   "path_id": 19,
+   "path": "kachel-rad",
+   "title": "Dreh das Rad",
+   "event": true,
+   "count": 4
+  },
+  {
+   "path_id": 49,
+   "path": "kachel-rad-readme",
+   "title": "Dreh das Rad",
+   "event": true,
+   "count": 1
+  },
+  {
+   "path_id": 20,
+   "path": "kachel-bigday",
+   "title": "bigday",
+   "event": true,
+   "count": 2
+  },
+  {
+   "path_id": 50,
+   "path": "kachel-bigday-readme",
+   "title": "bigday",
+   "event": true,
+   "count": 1
+  }
+ ],
+ "more": false
+}
